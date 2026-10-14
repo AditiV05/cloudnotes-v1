@@ -1,0 +1,73 @@
+digraph G {
+  graph [rankdir=TB, fontname="Inter", fontsize=22, pad=0.4, nodesep=0.4, ranksep=0.55, compound=true, newrank=true,
+         label=<<b>CloudNotes: Proposed Cloud Architecture on Google Cloud (region asia-south1, Mumbai)</b><br/><font point-size="15" color="#555555">Only the load balancer has a public IP. App VMs and the database have private IPs only and are reachable only through firewall rules.</font>>, labelloc=t];
+  node [fontname="Inter", fontsize=14, shape=box, style="rounded,filled", penwidth=1.4, margin="0.18,0.10"];
+  edge [fontname="Inter", fontsize=12, color="#444444", penwidth=1.3];
+
+  users [label=<<b>Users</b><br/>Browsers on the internet>, fillcolor="#F3F4F6", color="#6B7280"];
+  admin [label=<<b>Admin / developer</b><br/>SSH only via IAP<br/>(no public SSH)>, fillcolor="#F3F4F6", color="#6B7280"];
+
+  subgraph cluster_project {
+    label=<<b>GCP project: cloudnotes-prod</b>    <font color="#B91C1C">IAM boundary: every resource below is IAM-controlled</font>>; fontsize=16; style="rounded"; color="#B91C1C"; penwidth=2.2; margin=20;
+
+    subgraph cluster_public {
+      label=<<b>PUBLIC ZONE (internet-facing)</b>>; fontsize=14; style="rounded,filled"; fillcolor="#FEF2F2"; color="#EF4444"; margin=14;
+      lb [label=<<b>External HTTPS Load Balancer</b><br/>Single public IP, port 443 only<br/>Google-managed TLS certificate<br/>Cloud Armor (WAF + rate limiting)<br/>Health checks on /api/notes>, fillcolor="#FEE2E2", color="#DC2626"];
+      cdn [label=<<b>Cloud CDN</b><br/>caches /static/* at the edge>, fillcolor="#FEE2E2", color="#DC2626"];
+    }
+
+    subgraph cluster_vpc {
+      label=<<b>VPC: cloudnotes-vpc</b> (custom mode, no default routes from internet to VMs)>; fontsize=14; style="rounded,dashed"; color="#7C3AED"; penwidth=2; margin=18;
+
+      subgraph cluster_app {
+        label=<<b>PRIVATE app subnet 10.10.1.0/24</b><br/><font point-size="12" color="#B91C1C">FW: allow tcp:8080 only from Google LB + health check ranges (130.211.0.0/22, 35.191.0.0/16)<br/>FW: allow tcp:22 only from IAP range 35.235.240.0/20. Deny all other ingress.</font>>; fontsize=14; style="rounded,filled"; fillcolor="#EFF6FF"; color="#2563EB"; margin=14;
+        mig [label=<<b>Regional Managed Instance Group</b><br/>Compute Engine VMs (e2-small, Debian)<br/>Gunicorn + Flask app (same code)<br/>No external IPs<br/>Autoscale: min 2, max 10, target CPU 60%>, fillcolor="#DBEAFE", color="#2563EB"];
+        vma [label=<<b>VM</b><br/>zone asia-south1-a>, fillcolor="#DBEAFE", color="#2563EB"];
+        vmb [label=<<b>VM</b><br/>zone asia-south1-b>, fillcolor="#DBEAFE", color="#2563EB"];
+      }
+
+      subgraph cluster_db {
+        label=<<b>PRIVATE data tier 10.20.0.0/24</b> (Private Service Access)<br/><font point-size="12" color="#B91C1C">FW: allow tcp:5432 only from app subnet 10.10.1.0/24. No public IP.</font>>; fontsize=14; style="rounded,filled"; fillcolor="#FFFBEB"; color="#D97706"; margin=14;
+        sqlp [label=<<b>Cloud SQL for PostgreSQL</b><br/>Primary, zone a<br/>private IP only>, shape=cylinder, fillcolor="#FEF3C7", color="#D97706"];
+        sqls [label=<<b>Cloud SQL standby</b><br/>zone b (HA, synchronous)>, shape=cylinder, fillcolor="#FEF3C7", color="#D97706"];
+      }
+
+      nat [label=<<b>Cloud NAT</b><br/>outbound-only internet<br/>(OS + package updates)>, fillcolor="#EDE9FE", color="#7C3AED"];
+    }
+
+    subgraph cluster_managed {
+      label=<<b>Google-managed services</b> (reached via Private Google Access, authorised by IAM)>; fontsize=14; style="rounded,filled"; fillcolor="#F0FDF4"; color="#059669"; margin=14;
+      gcsu [label=<<b>Cloud Storage: uploads bucket</b><br/>private, uniform access, versioning on<br/>attachments served via signed URLs>, fillcolor="#D1FAE5", color="#059669"];
+      gcss [label=<<b>Cloud Storage: static bucket</b><br/>css, js, images>, fillcolor="#D1FAE5", color="#059669"];
+      sm [label=<<b>Secret Manager</b><br/>DB password, Flask secret key>, fillcolor="#D1FAE5", color="#059669"];
+      ops [label=<<b>Cloud Logging + Monitoring</b><br/>logs, metrics, alerts>, fillcolor="#D1FAE5", color="#059669"];
+    }
+
+    iam [shape=plaintext, style="", label=<
+      <table border="1" cellborder="0" cellspacing="2" cellpadding="5" color="#B91C1C" bgcolor="#FFF7F7">
+        <tr><td align="left"><b>IAM: service account cloudnotes-app-sa</b> (attached to every VM)</td></tr>
+        <tr><td align="left">roles/cloudsql.client</td></tr>
+        <tr><td align="left">roles/storage.objectAdmin on the uploads bucket only</td></tr>
+        <tr><td align="left">roles/secretmanager.secretAccessor on 2 secrets only</td></tr>
+        <tr><td align="left">roles/logging.logWriter, roles/monitoring.metricWriter</td></tr>
+        <tr><td align="left">No owner/editor roles. Humans get access via IAP + groups.</td></tr>
+      </table>>];
+  }
+
+  users -> lb [label=" HTTPS :443", color="#DC2626", penwidth=2];
+  lb -> cdn [label=" /static/*"];
+  cdn -> gcss [label=" cache miss"];
+  lb -> mig [label=" /, /notes, /api/*\n HTTP :8080 (private)", lhead=cluster_app, color="#2563EB", penwidth=2];
+  mig -> vma [arrowhead=none, style=dashed];
+  mig -> vmb [arrowhead=none, style=dashed];
+  vma -> sqlp [color="#D97706", penwidth=1.8];
+  vmb -> sqlp [color="#D97706", penwidth=1.8];
+  sqlp -> sqls [label=" sync replication", dir=both, style=dashed, color="#D97706"];
+  vmb -> gcsu [label=" upload / signed URL", color="#059669", ltail=cluster_app];
+  vmb -> sm [label=" read secrets", color="#059669", ltail=cluster_app];
+  vmb -> ops [color="#059669", ltail=cluster_app];
+  vma -> nat [style=dashed, color="#7C3AED", label=" egress only"];
+  admin -> vma [label=" IAP TCP tunnel :22", style=dashed, color="#6B7280"];
+  {rank=same; users; admin}
+  {rank=same; sqlp; sqls; nat}
+}

@@ -1,0 +1,50 @@
+digraph G {
+  graph [rankdir=TB, fontname="Inter", fontsize=22, pad=0.4, nodesep=0.35, ranksep=0.55, bgcolor="white",
+         label=<<b>CloudNotes v1.0: Current Local Architecture</b><br/><font point-size="15" color="#555555">Everything runs on one developer machine. All state (notes + uploaded files) lives on that machine's local disk.</font>>, labelloc=t];
+  node [fontname="Inter", fontsize=14, shape=box, style="rounded,filled", penwidth=1.4, margin="0.18,0.10"];
+  edge [fontname="Inter", fontsize=12, color="#444444", penwidth=1.3];
+
+  user [label=<<b>User</b><br/>Web browser<br/><font point-size="11">index.html, notes.html + main.js</font>>, fillcolor="#F3F4F6", color="#6B7280"];
+
+  subgraph cluster_machine {
+    label=<<b>Single local machine (laptop)</b>>; fontsize=16; style="rounded,dashed"; color="#111827"; penwidth=2; margin=18;
+
+    net [label=<<b>Loopback network</b><br/>127.0.0.1:5000 (HTTP, no TLS)<br/><font point-size="11" color="#5B21B6">NETWORKING</font>>, fillcolor="#EDE9FE", color="#7C3AED"];
+
+    subgraph cluster_proc {
+      label=<<b>Flask dev server process</b> (python app.py, debug=True)>; fontsize=14; style="rounded,filled"; fillcolor="#EFF6FF"; color="#2563EB"; margin=14;
+      app [label=<<b>app.py</b><br/>Flask app + page routes<br/>/ , /notes , /uploads/&lt;file&gt;<br/><font point-size="11" color="#1D4ED8">COMPUTE</font>>, fillcolor="#DBEAFE", color="#2563EB"];
+      api [label=<<b>api/routes.py</b><br/>REST API blueprint /api<br/>GET, POST /notes<br/>GET, DELETE /notes/&lt;id&gt;<br/><font point-size="11" color="#1D4ED8">COMPUTE</font>>, fillcolor="#DBEAFE", color="#2563EB"];
+      helpers [label=<<b>utils/helpers.py</b><br/>DB connection, schema init,<br/>file-type check<br/><font point-size="11" color="#1D4ED8">COMPUTE</font>>, fillcolor="#DBEAFE", color="#2563EB"];
+      tmpl [label=<<b>templates/</b><br/>index.html, notes.html<br/>(Jinja, rendered by Flask)<br/><font point-size="11" color="#1D4ED8">COMPUTE (part of app code)</font>>, fillcolor="#DBEAFE", color="#2563EB"];
+    }
+
+    subgraph cluster_disk {
+      label=<<b>Local disk</b>>; fontsize=14; style="rounded,filled"; fillcolor="#F9FAFB"; color="#9CA3AF"; margin=14;
+      static [label=<<b>static/</b><br/>css/style.css, js/main.js, images/<br/><font point-size="11" color="#047857">STORAGE</font>>, fillcolor="#D1FAE5", color="#059669"];
+      uploads [label=<<b>uploads/</b><br/>user attachments (max 5 MB)<br/>txt, md, pdf, png, jpg, gif<br/><font point-size="11" color="#047857">STORAGE</font>>, fillcolor="#D1FAE5", color="#059669"];
+      db [label=<<b>database/cloudnotes.db</b><br/>SQLite file, table: notes<br/>(id, title, body, filename, created_at)<br/><font point-size="11" color="#B45309">DATABASE</font>>, shape=cylinder, fillcolor="#FEF3C7", color="#D97706"];
+    }
+  }
+
+  user -> net [label="HTTP requests", dir=both];
+  net -> app;
+  app -> api [label="register_blueprint"];
+  app -> tmpl [label="render_template"];
+  app -> static [label="serves /static"];
+  app -> uploads [label="send_from_directory"];
+  api -> helpers;
+  api -> uploads [label="save attachment"];
+  helpers -> db [label="sqlite3 read/write"];
+
+  legend [shape=plaintext, style="", label=<
+    <table border="1" cellborder="0" cellspacing="4" cellpadding="4" color="#D1D5DB">
+      <tr><td colspan="2"><b>Service category</b></td></tr>
+      <tr><td bgcolor="#DBEAFE" width="18"></td><td align="left">Compute: code that runs and handles requests</td></tr>
+      <tr><td bgcolor="#D1FAE5"></td><td align="left">Storage: files and objects</td></tr>
+      <tr><td bgcolor="#FEF3C7"></td><td align="left">Database: structured records</td></tr>
+      <tr><td bgcolor="#EDE9FE"></td><td align="left">Networking: how traffic reaches the app</td></tr>
+    </table>>];
+  {rank=same; user; legend}
+  legend -> user [style=invis];
+}
