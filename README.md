@@ -18,3 +18,4 @@ python app.py               # http://localhost:5000
 - `Dockerfile` / `docker-compose.yml`: container alternative
 - [`architecture/`](architecture/): Module 1 cloud architecture proposal
 - [`network-security/`](network-security/): LU 2.4 tiered network (nginx web tier, private app + db), firewall rules, connectivity tests, GCP firewall mapping
+- [`migration/`](migration/): LU 2.7 PostgreSQL 16 → 17 migration scripts (analyze, migrate + verify, repoint, verify app) and the [Cloud SQL design](migration/cloud-sql-design.md)

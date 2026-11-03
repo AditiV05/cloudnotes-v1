@@ -1,5 +1,7 @@
 import os
 
+from urllib.parse import urlparse
+
 from dotenv import load_dotenv
 from flask import Flask, jsonify, render_template, send_from_directory
 
@@ -43,9 +45,16 @@ def health():
     try:
         conn = get_db_connection()
         with conn.cursor() as cur:
-            cur.execute("SELECT 1")
+            cur.execute("SELECT current_setting('server_version') AS v")
+            version = cur.fetchone()["v"]
         conn.close()
-        return jsonify({"status": "ok", "database": "postgresql", "pid": os.getpid()})
+        return jsonify({
+            "status": "ok",
+            "database": "postgresql",
+            "server_version": version,
+            "db_host": urlparse(os.environ.get("DATABASE_URL", "")).hostname,  # host only, never the password
+            "pid": os.getpid(),
+        })
     except Exception as exc:  # pragma: no cover - surfaced to the operator
         return jsonify({"status": "error", "detail": str(exc)}), 503
 

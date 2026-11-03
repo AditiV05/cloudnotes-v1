@@ -1,0 +1,32 @@
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="style.css"></head><body><div class="page">
+<h1>CloudNotes: Cloud SQL Architecture Design</h1>
+<p class="sub">Cloud SQL for PostgreSQL 17 · <code>db-custom-1-3840</code> (1 vCPU, 3.75 GB) · region <code>asia-south1</code> · Regional HA · Private IP only · Secret Manager</p>
+<svg viewBox="0 0 1120 250" width="1120" height="250" font-family="-apple-system,Segoe UI,Roboto,Arial" font-size="12.5">
+ <defs><marker id="a" markerUnits="userSpaceOnUse" markerWidth="12" markerHeight="12" refX="10" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10z" fill="#334155"/></marker></defs>
+ <rect x="5" y="5" width="1110" height="240" rx="12" fill="#f8fafc" stroke="#94a3b8" stroke-dasharray="6 4"/><text x="20" y="25" font-weight="700" fill="#475569">VPC cloudnotes-vpc (asia-south1): no public path to the database</text>
+ <rect x="25" y="55" width="150" height="60" rx="8" fill="#dbeafe" stroke="#1e3a8a"/><text x="100" y="80" text-anchor="middle" font-weight="700">Web tier (nginx)</text><text x="100" y="98" text-anchor="middle">10.0.1.0/24</text>
+ <rect x="235" y="45" width="220" height="80" rx="8" fill="#e0e7ff" stroke="#3730a3"/><text x="345" y="68" text-anchor="middle" font-weight="700">CloudNotes app · 10.0.2.0/24</text><text x="345" y="87" text-anchor="middle">SA: cloudnotes-app@</text><text x="345" y="105" text-anchor="middle">+ Cloud SQL Auth Proxy (IAM, TLS)</text>
+ <line x1="175" y1="85" x2="231" y2="85" stroke="#334155" stroke-width="2" marker-end="url(#a)"/>
+ <rect x="235" y="165" width="220" height="55" rx="8" fill="#fef9c3" stroke="#a16207"/><text x="345" y="188" text-anchor="middle" font-weight="700">Secret Manager</text><text x="345" y="206" text-anchor="middle">cloudnotes-db-password</text>
+ <line x1="345" y1="161" x2="345" y2="129" stroke="#a16207" stroke-width="2" marker-end="url(#a)"/><text x="338" y="150" text-anchor="end" fill="#a16207">secretAccessor (runtime)</text>
+ <rect x="540" y="40" width="340" height="185" rx="10" fill="#ecfdf5" stroke="#047857"/><text x="710" y="60" text-anchor="middle" font-weight="700">Cloud SQL PostgreSQL 17 (REGIONAL)</text>
+ <text x="710" y="76" text-anchor="middle" fill="#047857">Private IP 10.10.0.x · no public IP · SSL required</text>
+ <rect x="580" y="88" width="120" height="58" rx="6" fill="#fff" stroke="#047857"/><text x="640" y="110" text-anchor="middle" font-weight="700">PRIMARY</text><text x="640" y="128" text-anchor="middle">zone a</text>
+ <rect x="720" y="88" width="120" height="58" rx="6" fill="#fff" stroke="#047857" stroke-dasharray="4 3"/><text x="780" y="110" text-anchor="middle" font-weight="700">STANDBY</text><text x="780" y="128" text-anchor="middle">zone b</text>
+ <text x="710" y="105" text-anchor="middle" font-weight="700" fill="#047857">⇄</text><text x="710" y="164" text-anchor="middle">sync replication · auto-failover ≈60 s, same IP</text>
+ <text x="710" y="182" text-anchor="middle">Daily backups 02:00 IST · keep 14 · PITR 7 days</text><text x="710" y="200" text-anchor="middle">Maintenance Sun 03:00 IST · deletion protection</text><text x="710" y="217" text-anchor="middle">10 GB SSD, auto storage increase</text>
+ <line x1="455" y1="95" x2="536" y2="112" stroke="#047857" stroke-width="2.5" marker-end="url(#a)"/><text x="460" y="60" fill="#047857" font-weight="700">tcp:5432</text><text x="460" y="76" fill="#047857" font-weight="700">private only</text>
+ <rect x="910" y="60" width="195" height="65" rx="8" fill="#fff7ed" stroke="#b45309"/><text x="1005" y="85" text-anchor="middle" font-weight="700">DR read replica</text><text x="1005" y="104" text-anchor="middle">asia-south2 (promotable)</text>
+ <line x1="880" y1="95" x2="906" y2="95" stroke="#b45309" stroke-width="2" stroke-dasharray="5 3" marker-end="url(#a)"/>
+ <rect x="910" y="150" width="190" height="65" rx="8" fill="#f1f5f9" stroke="#64748b"/><text x="1005" y="175" text-anchor="middle" font-weight="700">Backups</text><text x="1005" y="194" text-anchor="middle">multi-region storage (asia)</text>
+ <line x1="880" y1="182" x2="906" y2="182" stroke="#64748b" stroke-width="2" stroke-dasharray="5 3" marker-end="url(#a)"/>
+</svg>
+<div class="grid3">
+<div class="card"><h3>🔒 Private connectivity</h3><ul><li>Private IP via Private Services Access <code>10.10.0.0/16</code></li><li>No public IP, no authorized networks</li><li>Only <code>app</code>-tagged VMs reach <code>tcp:5432</code> (LU 2.4 firewall)</li><li>Cloud SQL Auth Proxy: IAM auth + TLS</li></ul></div>
+<div class="card"><h3>🔑 Secret Manager + IAM</h3><ul><li>Password in <code>cloudnotes-db-password</code>, versioned and rotatable</li><li>App SA: <code>cloudsql.client</code> + <code>secretAccessor</code> on that one secret</li><li>No credentials in git, image or metadata</li><li>Optional IAM DB auth for humans</li></ul></div>
+<div class="card"><h3>💾 Backup strategy</h3><ul><li>Automated daily backups, keep <b>14</b></li><li>Point-in-time recovery, <b>7 days</b></li><li>On-demand backup before every migration</li><li>Monthly restore drill to a temp instance</li></ul></div>
+<div class="card"><h3>🛟 High availability / DR</h3><ul><li><b>REGIONAL</b>: sync standby in zone b</li><li>Auto-failover ≈60 s, same IP, RPO ≈ 0</li><li>Cross-region replica asia-south2 for region loss</li><li>Rollback: source kept read-only 7 days</li></ul></div>
+<div class="card"><h3>💰 Cost (approx., asia-south1)</h3><table class="kv"><tr><td>Single-zone</td><td>≈ $50–60 / mo</td><td>outage on zone failure</td></tr><tr><td>Regional HA</td><td>≈ $100–120 / mo</td><td>auto-failover</td></tr><tr><td>Dev</td><td><code>db-g1-small</code></td><td>zonal, no SLA</td></tr></table><p style="margin:6px 0 0"><span class="tag">RECOMMENDED</span> Regional HA for production</p></div>
+<div class="card"><h3>📈 vs local deployment</h3><ul><li>Google patches, upgrades and grows storage</li><li>Backups automatic, not manual <code>pg_dump</code></li><li>Survives a zone failure, unlike one laptop</li><li>Scale by tier change + read replicas</li></ul></div>
+</div>
+</div></body></html>

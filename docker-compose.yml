@@ -26,7 +26,9 @@ services:
     restart: always
     env_file: .env
     environment:
-      DATABASE_URL: postgresql://cloudnotes:${POSTGRES_PASSWORD}@db:5432/cloudnotes
+      # Connection string comes ONLY from .env (no credentials in code or in this file).
+      # Repointing the app to another database = changing this one variable.
+      DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL in .env (run migration/00-prepare.sh)}
       UPLOAD_FOLDER: /app/uploads
     expose:
       - "5000"                       # reachable ONLY by containers on its networks (nginx), not the host/public
@@ -56,11 +58,29 @@ services:
       interval: 5s
       retries: 10
 
+  # Migration TARGET (LU 2.7): a fresh, newer PostgreSQL. Same private `data` network, no published port.
+  db-target:
+    image: postgres:17
+    restart: always
+    environment:
+      POSTGRES_DB: cloudnotes
+      POSTGRES_USER: cloudnotes
+      POSTGRES_PASSWORD: ${TARGET_DB_PASSWORD:?set TARGET_DB_PASSWORD in .env (run migration/00-prepare.sh)}
+    networks:
+      - data
+    volumes:
+      - pgdata17:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cloudnotes"]
+      interval: 5s
+      retries: 10
+
 networks:
   web:                               # web tier <-> app tier
   data:
     internal: true                   # db tier: no route to/from the outside world (no ingress, no internet egress)
 
 volumes:
-  pgdata:
+  pgdata:       # source database (PostgreSQL 16), kept intact as the rollback
+  pgdata17:     # target database (PostgreSQL 17)
   uploads:
