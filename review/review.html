@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>CloudNotes Production Architecture Review</title>
+<style>
+@page{size:A4 landscape;margin:10mm}
+*{box-sizing:border-box}
+body{margin:0;font:10.5px/1.4 -apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:#1f2937;background:#fff}
+section{page-break-after:always}section:last-of-type{page-break-after:auto}
+section.hidden{display:none}
+h1{font-size:19px;margin:0 0 2px;color:#111827}h2{font-size:13px;margin:10px 0 4px;color:#1e3a8a}h3{font-size:12px;margin:0 0 4px}
+.sub{color:#6b7280;margin:0 0 8px;font-size:11px}
+.label{display:inline-block;background:#1e3a8a;color:#fff;border-radius:4px;padding:1px 8px;font-size:11px;font-weight:700;margin-bottom:4px}
+table{border-collapse:collapse;width:100%}th{background:#1e3a8a;color:#fff;text-align:left;padding:4px 6px;font-size:10.5px}
+td{border-bottom:1px solid #e5e7eb;padding:3px 6px;vertical-align:top}tr:nth-child(even) td{background:#f8fafc}
+code{font:9.5px ui-monospace,Menlo,monospace;background:#eef2ff;padding:0 3px;border-radius:3px}
+pre{font:9px/1.35 ui-monospace,Menlo,monospace;background:#0f172a;color:#e2e8f0;padding:6px 8px;border-radius:6px;margin:4px 0 0;white-space:pre-wrap}
+.pass{color:#047857;font-weight:800}.gap{color:#b91c1c;font-weight:800}
+.caption{margin-top:8px;border-left:4px solid #1e3a8a;background:#f1f5f9;padding:6px 10px;font-size:11px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.card{border:1px solid #e5e7eb;border-radius:8px;padding:8px 10px}
+.adr h3{color:#1e3a8a}.adr p{margin:2px 0}.adr b{color:#111827}
+.small{font-size:9.5px;color:#4b5563}
+.placeholder{border:2px dashed #94a3b8;border-radius:8px;padding:14px;color:#475569;background:#f8fafc}
+</style></head><body>
+
+<!-- ============================== DOCUMENT 1 ============================== -->
+<section id="doc1">
+<span class="label">Document 1</span>
+<h1>Production Architecture Diagram: Free-Safe Implementation → GCP Production</h1>
+<p class="sub">CloudNotes · Layer 1 = what runs today, for free (LU 2.2 / 2.4 / 2.7) · Layer 2 = the GCP production design it maps to · items marked <b>ADR-00x</b> are planned improvements from Document 5</p>
+<svg viewBox="0 0 1120 470" style="display:block;margin:0 auto;width:90%;height:auto" font-family="-apple-system,Segoe UI,Roboto,Arial" font-size="11">
+ <defs><marker id="ar" markerUnits="userSpaceOnUse" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10z" fill="#334155"/></marker>
+ <marker id="am" markerUnits="userSpaceOnUse" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10z" fill="#7c3aed"/></marker></defs>
+ <!-- LAYER 1 -->
+ <rect x="2" y="2" width="1116" height="170" rx="10" fill="#f8fafc" stroke="#64748b"/>
+ <text x="14" y="20" font-weight="800" font-size="12.5" fill="#334155">LAYER 1 · FREE-SAFE IMPLEMENTATION (running): Docker Desktop on macOS · cost $0</text>
+ <rect x="14" y="34" width="110" height="52" rx="7" fill="#fff" stroke="#64748b"/><text x="69" y="56" text-anchor="middle" font-weight="700">Browser</text><text x="69" y="72" text-anchor="middle">http://localhost</text>
+ <rect x="160" y="30" width="160" height="62" rx="7" fill="#dbeafe" stroke="#1e3a8a"/><text x="240" y="50" text-anchor="middle" font-weight="700">web · nginx :80</text><text x="240" y="66" text-anchor="middle">only published port</text><text x="240" y="82" text-anchor="middle">net: web</text>
+ <rect x="360" y="30" width="180" height="62" rx="7" fill="#e0e7ff" stroke="#3730a3"/><text x="450" y="50" text-anchor="middle" font-weight="700">app · Flask + gunicorn :5000</text><text x="450" y="66" text-anchor="middle">expose only · /health</text><text x="450" y="82" text-anchor="middle">nets: web + data</text>
+ <rect x="580" y="30" width="200" height="62" rx="7" fill="#ecfdf5" stroke="#047857"/><text x="680" y="50" text-anchor="middle" font-weight="700">db-target · PostgreSQL 17</text><text x="680" y="66" text-anchor="middle">db (PG16) kept as rollback</text><text x="680" y="82" text-anchor="middle">net: data (internal) · no port</text>
+ <line x1="124" y1="60" x2="156" y2="60" stroke="#334155" stroke-width="2" marker-end="url(#ar)"/>
+ <line x1="320" y1="60" x2="356" y2="60" stroke="#334155" stroke-width="2" marker-end="url(#ar)"/>
+ <line x1="540" y1="60" x2="576" y2="60" stroke="#334155" stroke-width="2" marker-end="url(#ar)"/>
+ <rect x="820" y="30" width="138" height="62" rx="7" fill="#fff7ed" stroke="#b45309"/><text x="889" y="50" text-anchor="middle" font-weight="700">Storage</text><text x="889" y="66" text-anchor="middle">volumes: pgdata,</text><text x="889" y="82" text-anchor="middle">pgdata17, uploads</text>
+ <rect x="970" y="30" width="138" height="62" rx="7" fill="#fef9c3" stroke="#a16207"/><text x="1039" y="50" text-anchor="middle" font-weight="700">Secrets</text><text x="1039" y="66" text-anchor="middle">.env (git-ignored,</text><text x="1039" y="82" text-anchor="middle">chmod 600)</text>
+ <rect x="14" y="104" width="360" height="58" rx="7" fill="#fff" stroke="#b91c1c"/><text x="24" y="121" font-weight="700" fill="#b91c1c">Firewall (Docker networks + nginx)</text><text x="24" y="137">default-deny · only :80 published · web↛db · db↛internet</text><text x="24" y="153">nginx: GET/HEAD/POST/DELETE only · /health private · no SSH</text>
+ <rect x="386" y="104" width="360" height="58" rx="7" fill="#fff" stroke="#047857"/><text x="396" y="121" font-weight="700" fill="#047857">Reliability</text><text x="396" y="137">restart: always · db healthchecks · /health checks DB</text><text x="396" y="153">pg_dump + verified migration · one-command rollback</text>
+ <rect x="758" y="104" width="350" height="58" rx="7" fill="#fff" stroke="#7c3aed"/><text x="768" y="121" font-weight="700" fill="#7c3aed">Security / IAM (local)</text><text x="768" y="137">no IAM locally · admin = docker exec (Mac login)</text><text x="768" y="153">DATABASE_URL only from env · no creds in code</text>
+ <!-- mapping arrows -->
+ <text x="560" y="190" text-anchor="middle" font-weight="800" fill="#7c3aed" font-size="12">▼ maps to (see table) ▼</text>
+ <!-- LAYER 2 -->
+ <rect x="2" y="200" width="1116" height="268" rx="10" fill="#f5f3ff" stroke="#7c3aed"/>
+ <text x="14" y="218" font-weight="800" font-size="12.5" fill="#5b21b6">LAYER 2 · GCP PRODUCTION DESIGN (on paper): project cloudnotes-prod · region asia-south1 · est. ≈ $150 / month</text>
+ <rect x="14" y="232" width="120" height="50" rx="7" fill="#fff" stroke="#64748b"/><text x="74" y="252" text-anchor="middle" font-weight="700">Users</text><text x="74" y="268" text-anchor="middle">https://cloudnotes…</text>
+ <rect x="150" y="226" width="170" height="62" rx="7" fill="#fff" stroke="#7c3aed"/><text x="235" y="244" text-anchor="middle" font-weight="700">Cloud DNS + HTTPS LB</text><text x="235" y="260" text-anchor="middle">Google-managed cert</text><text x="235" y="276" text-anchor="middle">HTTP→HTTPS · ADR-001</text>
+ <line x1="134" y1="257" x2="146" y2="257" stroke="#334155" stroke-width="2" marker-end="url(#ar)"/>
+ <rect x="340" y="226" width="520" height="160" rx="9" fill="#fff" stroke="#6366f1" stroke-dasharray="5 3"/><text x="350" y="242" font-weight="700" fill="#4338ca">VPC cloudnotes-vpc · default-deny · firewall rules by network tag</text>
+ <rect x="350" y="250" width="210" height="62" rx="7" fill="#e0e7ff" stroke="#3730a3"/><text x="455" y="268" text-anchor="middle" font-weight="700">Compute Engine · app-subnet</text><text x="455" y="284" text-anchor="middle">regional MIG 2× e2-small, zones a+b</text><text x="455" y="300" text-anchor="middle">autohealing on /health · ADR-002</text>
+ <rect x="600" y="250" width="250" height="62" rx="7" fill="#ecfdf5" stroke="#047857"/><text x="725" y="268" text-anchor="middle" font-weight="700">Cloud SQL PostgreSQL 17 · REGIONAL HA</text><text x="725" y="284" text-anchor="middle">private IP only · Auth Proxy · SSL</text><text x="725" y="300" text-anchor="middle">backups 14d + PITR 7d · standby zone b</text>
+ <line x1="320" y1="257" x2="346" y2="275" stroke="#334155" stroke-width="2" marker-end="url(#ar)"/>
+ <line x1="560" y1="281" x2="596" y2="281" stroke="#047857" stroke-width="2" marker-end="url(#ar)"/><text x="563" y="274" fill="#047857" font-size="10">5432</text>
+ <rect x="350" y="322" width="500" height="56" rx="7" fill="#fff" stroke="#b91c1c"/><text x="360" y="338" font-weight="700" fill="#b91c1c">VPC firewall rules</text><text x="360" y="353">allow 443 LB→web · allow 5000 LB/health-check ranges→tag app · allow 5432 tag app→db</text><text x="360" y="368">SSH 22 only from IAP 35.235.240.0/20 · deny public→5432 · implied deny-all</text>
+ <rect x="880" y="226" width="228" height="48" rx="7" fill="#fff7ed" stroke="#b45309"/><text x="994" y="244" text-anchor="middle" font-weight="700">Cloud Storage (uploads)</text><text x="994" y="261" text-anchor="middle">Standard → Nearline after 30d</text>
+ <rect x="880" y="282" width="228" height="48" rx="7" fill="#fef9c3" stroke="#a16207"/><text x="994" y="300" text-anchor="middle" font-weight="700">Secret Manager · ADR-003</text><text x="994" y="317" text-anchor="middle">cloudnotes-db-password, secret-key</text>
+ <rect x="880" y="338" width="228" height="48" rx="7" fill="#f5f3ff" stroke="#7c3aed"/><text x="994" y="356" text-anchor="middle" font-weight="700">IAM · service accounts</text><text x="994" y="373" text-anchor="middle">sa-app: sql.client, secretAccessor, storage</text>
+ <line x1="860" y1="300" x2="876" y2="250" stroke="#7c3aed" stroke-width="1.5" marker-end="url(#am)"/><line x1="860" y1="305" x2="876" y2="305" stroke="#7c3aed" stroke-width="1.5" marker-end="url(#am)"/><line x1="860" y1="310" x2="876" y2="360" stroke="#7c3aed" stroke-width="1.5" marker-end="url(#am)"/>
+ <rect x="14" y="396" width="540" height="64" rx="7" fill="#fff" stroke="#047857"/><text x="24" y="413" font-weight="700" fill="#047857">Reliability components</text><text x="24" y="429">LB health checks + MIG autohealing · 2 zones for app and DB · Cloud SQL automatic failover</text><text x="24" y="445">automated backups + PITR · cross-region read replica asia-south2 (DR) · monthly restore drill</text>
+ <rect x="566" y="396" width="542" height="64" rx="7" fill="#fff" stroke="#0f766e" stroke-dasharray="5 3"/><text x="576" y="413" font-weight="700" fill="#0f766e">Cost boundary: free-safe ($0, local) │ paid production (≈ $150/mo, design only)</text><text x="576" y="429">Cloud SQL HA ≈ $100–120 · MIG 2× e2-small ≈ $25 · HTTPS LB ≈ $18 · storage/DNS/secrets ≈ $2</text><text x="576" y="445">dev/staging: zonal db-g1-small + 1× e2-micro, stopped when idle · budget alert at $50</text>
+</svg>
+<table style="margin-top:2px;font-size:9.8px">
+<tr><th>Local component (Layer 1)</th><th>GCP equivalent (Layer 2)</th><th>Why they play the same role</th></tr>
+<tr><td>Linux server / Docker Desktop, <code>restart: always</code></td><td>Compute Engine regional MIG (systemd / container on each VM)</td><td>Both run the same container image; MIG adds autohealing and a second zone</td></tr>
+<tr><td>Docker networks + nginx allow-lists (default-deny)</td><td>VPC firewall rules by network tag + implied deny</td><td>Both decide which tier can reach which port; only the edge is public</td></tr>
+<tr><td>PostgreSQL 17 container (<code>data</code> network, no port)</td><td>Cloud SQL PostgreSQL 17, private IP, regional HA</td><td>Same engine and schema; Google runs backups, patching and failover</td></tr>
+<tr><td>Docker volume <code>uploads</code></td><td>Cloud Storage bucket with lifecycle rules</td><td>Attachments leave the VM, so app servers become stateless and replaceable</td></tr>
+<tr><td><code>.env</code> file (git-ignored)</td><td>Secret Manager, read at runtime by the app service account</td><td>Both keep secrets out of code; Secret Manager adds IAM, rotation and audit</td></tr>
+<tr><td>Docker bridge networks <code>web</code> / <code>data</code></td><td>VPC <code>cloudnotes-vpc</code> with web / app / db subnets</td><td>Both segment tiers into separate private networks</td></tr>
+<tr><td>nginx on <code>http://localhost:80</code></td><td>Cloud DNS + global external HTTPS Load Balancer</td><td>Both are the single public entry; production adds a real name and TLS</td></tr>
+</table>
+<div class="caption"><b>Caption:</b> Every local piece has a direct cloud counterpart. The container image, schema and tier boundaries stay the same, and only where each piece runs changes: Docker → Compute Engine MIG, Docker networks → VPC firewall rules, local PostgreSQL → Cloud SQL, volume → Cloud Storage, <code>.env</code> → Secret Manager, nginx → Cloud DNS + HTTPS Load Balancer. The dashed cost boundary separates what runs free today from what would be paid in production.</div>
+</section>
+
+<!-- ============================== DOCUMENT 2 ============================== -->
+<section id="doc2">
+<span class="label">Document 2</span>
+<h1>Self Architecture Review Checklist: Four Lenses</h1>
+<p class="sub">Reviewed against the running free-safe stack <b>and</b> the GCP design pack. Result: <b class="pass">10 PASS</b> · <b class="gap">10 GAP</b>. A gap is something that is missing, untested, or only on paper.</p>
+<div class="grid2">
+<div><h2>🔒 Security</h2><table>
+<tr><th style="width:30%">Item</th><th style="width:11%">Result</th><th>Justification</th></tr>
+<tr><td>IAM least privilege</td><td class="gap">GAP</td><td>Only the app's DB/secret roles are designed; no roles for humans, CI or storage, and nothing is enforced locally.</td></tr>
+<tr><td>Secret management</td><td class="gap">GAP</td><td>Today the DB passwords sit in plaintext in <code>.env</code> on disk (git-ignored, chmod 600). Secret Manager is design only.</td></tr>
+<tr><td>Firewall restrictions</td><td class="pass">PASS</td><td>Default-deny, only :80 published, web↛db, db↛internet. 7/7 connectivity tests passed.</td></tr>
+<tr><td>Public exposure</td><td class="pass">PASS</td><td>App :5000 and DB :5432 are unreachable from outside ("Connection refused"); no public DB IP in the design.</td></tr>
+<tr><td>Administrative access</td><td class="pass">PASS</td><td>No SSH in any container; designed SSH only via IAP. Note: the <code>/health</code> allow-list (172.16.0.0/12) is broader than needed.</td></tr>
+</table>
+<h2>🛟 Reliability</h2><table>
+<tr><th style="width:30%">Item</th><th style="width:11%">Result</th><th>Justification</th></tr>
+<tr><td>Health checks</td><td class="gap">GAP</td><td><code>/health</code> checks the DB, but only the DB containers have a Docker healthcheck; a hung app is never restarted.</td></tr>
+<tr><td>Backup strategy</td><td class="gap">GAP</td><td>Locally, backups are manual <code>pg_dump</code> only, with no schedule. Automated backups + PITR exist only in the Cloud SQL design.</td></tr>
+<tr><td>Recovery planning</td><td class="pass">PASS</td><td>Migration has a tested one-command rollback (<code>03-repoint.sh source</code>), and the source DB is kept intact.</td></tr>
+<tr><td>Failover planning</td><td class="gap">GAP</td><td>Single host and single DB today; failover is designed but never tested (no drill).</td></tr>
+<tr><td>High availability design</td><td class="gap">GAP</td><td>The DB is regional HA, but the LU 2.2 compute mapping is a single e2-medium VM, so the app tier is a single point of failure.</td></tr>
+</table></div>
+<div><h2>💰 Cost</h2><table>
+<tr><th style="width:30%">Item</th><th style="width:11%">Result</th><th>Justification</th></tr>
+<tr><td>Compute sizing</td><td class="gap">GAP</td><td>e2-medium was picked without load data; a 2-worker app at ~90 MB RAM fits e2-small. Over-provisioned.</td></tr>
+<tr><td>Database sizing</td><td class="pass">PASS</td><td><code>db-custom-1-3840</code> for prod, <code>db-g1-small</code> for dev, 10 GB with auto-increase. Right-sized for an 8 MB DB.</td></tr>
+<tr><td>Storage usage</td><td class="gap">GAP</td><td>Uploads live on a local volume / VM disk; no bucket, storage class or lifecycle rule is designed yet.</td></tr>
+<tr><td>Free-safe vs paid boundary</td><td class="pass">PASS</td><td>Everything runs free locally; every paid service is design-only with a cost estimate (≈ $150/mo).</td></tr>
+<tr><td>Cost optimization</td><td class="gap">GAP</td><td>No budget alerts, no dev shutdown schedule, no committed-use plan. HA roughly doubles DB cost.</td></tr>
+</table>
+<h2>🌐 Networking</h2><table>
+<tr><th style="width:30%">Item</th><th style="width:11%">Result</th><th>Justification</th></tr>
+<tr><td>Network segmentation</td><td class="pass">PASS</td><td>Separate <code>web</code> and internal <code>data</code> networks locally; web/app/db subnets in the VPC design.</td></tr>
+<tr><td>DNS architecture</td><td class="gap">GAP</td><td>Reached by <code>localhost</code> / bare IP only; Cloud DNS is mentioned but there is no zone or record design.</td></tr>
+<tr><td>HTTPS design</td><td class="gap">GAP</td><td>Plain HTTP end to end (browser→nginx and nginx→app). No certificate or HTTP→HTTPS redirect.</td></tr>
+<tr><td>Firewall boundaries</td><td class="pass">PASS</td><td>Every tier boundary has an explicit rule, and the dangerous paths are proven blocked by tests.</td></tr>
+<tr><td>Private DB connectivity</td><td class="pass">PASS</td><td>No published DB port, internal network locally; private IP + Auth Proxy in the design.</td></tr>
+</table></div>
+</div>
+<div class="caption"><b>Caption:</b> <b>Strengths:</b> network isolation is real and tested (default-deny, private app and DB, no SSH), data migration and rollback are proven, and the DB is private and right-sized. <b>Biggest gaps:</b> no HTTPS or DNS, an app tier that is a single point of failure (single VM, no app healthcheck), secrets in a plaintext <code>.env</code>, and backups and failover that exist only on paper. The three most important gaps become the ADRs in Document 5.</div>
+</section>
+
+<!-- ============================== DOCUMENT 3 ============================== -->
+<section id="doc3">
+<span class="label">Document 3</span>
+<h1>Peer Feedback Given</h1>
+<p class="sub">Review of: <b>[classmate name]</b>'s CloudNotes architecture pack · reviewed using the four lenses</p>
+<div class="placeholder">PEER_REVIEW_GIVEN</div>
+</section>
+
+<!-- ============================== DOCUMENT 4 ============================== -->
+<section id="doc4">
+<span class="label">Document 4</span>
+<h1>Peer Feedback Received</h1>
+<p class="sub">Reviewer: <b>[classmate name]</b> · on Aditi's CloudNotes architecture pack</p>
+<div class="placeholder">PEER_FEEDBACK_RECEIVED</div>
+</section>
+
+<!-- ============================== DOCUMENT 5 ============================== -->
+<section id="doc5">
+<span class="label">Document 5</span>
+<h1>Improvement Plan: Architecture Decision Records</h1>
+<p class="sub">The three gaps from Document 2 with the highest risk: no HTTPS (security + networking), app tier is a single point of failure (reliability), secrets in plaintext (security)</p>
+<div class="grid3">
+<div class="card adr"><h3>ADR-001 · HTTPS at the edge with Cloud DNS + HTTPS Load Balancer</h3>
+<p><b>Status:</b> Accepted</p>
+<p><b>Context:</b> CloudNotes is plain HTTP end to end. Notes and attachments travel unencrypted, and users reach it only by IP. HTTPS design is a GAP in both the security and networking lenses.</p>
+<p><b>Decision:</b> Put a global external HTTPS Load Balancer with a <b>Google-managed certificate</b> in front, add a Cloud DNS A record, and redirect HTTP→HTTPS. Only the LB and health-check ranges may reach the app (tcp:5000). Locally, nginx gets a self-signed cert on :443 for parity.</p>
+<p><b>Alternatives:</b> (1) Let's Encrypt + certbot on the nginx VM: free, but renewal is ours and it ties TLS to one VM. (2) Cloudflare proxy: easy, but adds a third-party dependency. (3) Stay on HTTP: rejected, unsafe.</p>
+<p><b>Trade-offs:</b> <span class="pass">+</span> encryption, automatic cert renewal, a single entry point that enables ADR-002, room for Cloud Armor later. <span class="gap">−</span> ≈ $18/month for the forwarding rule, TLS ends at the LB (LB→VM traffic stays inside Google's network), and DNS changes take time to propagate.</p>
+<pre>gcloud compute ssl-certificates create cloudnotes-cert \
+  --domains=cloudnotes.example.com --global
+gcloud compute target-https-proxies create cloudnotes-https \
+  --url-map=cloudnotes-map --ssl-certificates=cloudnotes-cert
+gcloud compute forwarding-rules create cloudnotes-443 --global \
+  --target-https-proxy=cloudnotes-https --ports=443
+gcloud dns record-sets create cloudnotes.example.com. \
+  --zone=cloudnotes-zone --type=A --ttl=300 --rrdatas=&lt;LB_IP&gt;</pre></div>
+
+<div class="card adr"><h3>ADR-002 · App tier as a regional Managed Instance Group with autohealing</h3>
+<p><b>Status:</b> Accepted</p>
+<p><b>Context:</b> The DB is regional HA, but the app is one e2-medium VM: a single point of failure, sized without data, and with no app healthcheck. A zone outage or a hung process takes CloudNotes down.</p>
+<p><b>Decision:</b> Run the container on a <b>regional MIG of 2× e2-small</b> across zones a and b, behind the ADR-001 LB, with <b>autohealing</b> on <code>/health</code> and autoscaling to 4 at 70% CPU. Move uploads to a Cloud Storage bucket so the VMs are stateless. Locally, add a Docker healthcheck to <code>app</code>.</p>
+<p><b>Alternatives:</b> (1) One bigger VM: simple, but still a single zone. (2) Cloud Run: serverless and cheap at low traffic, but needs a Serverless VPC connector to reach private Cloud SQL and a code change for uploads. (3) GKE: too heavy for one small service.</p>
+<p><b>Trade-offs:</b> <span class="pass">+</span> survives a zone failure, replaces hung VMs automatically, and 2× e2-small (≈ $25) costs about the same as one e2-medium. <span class="gap">−</span> more moving parts (template, health check, LB), the app must stay stateless, and rolling updates are needed for deploys.</p>
+<pre>gcloud compute health-checks create http cloudnotes-hc \
+  --port=5000 --request-path=/health --check-interval=10s
+gcloud compute instance-groups managed create cloudnotes-mig \
+  --region=asia-south1 --zones=asia-south1-a,asia-south1-b \
+  --template=cloudnotes-tpl --size=2 \
+  --health-check=cloudnotes-hc --initial-delay=60
+gcloud compute firewall-rules create allow-hc-to-app \
+  --network=cloudnotes-vpc --allow=tcp:5000 --target-tags=app \
+  --source-ranges=130.211.0.0/22,35.191.0.0/16</pre></div>
+
+<div class="card adr"><h3>ADR-003 · Secrets in Secret Manager with per-service least-privilege IAM</h3>
+<p><b>Status:</b> Accepted</p>
+<p><b>Context:</b> DB passwords and <code>SECRET_KEY</code> sit in plaintext in <code>.env</code> on the server. Anyone with disk or backup access can read them, there is no rotation or audit trail, and IAM for humans/CI isn't designed (two security GAPs).</p>
+<p><b>Decision:</b> Store <code>cloudnotes-db-password</code> and <code>cloudnotes-secret-key</code> in <b>Secret Manager</b>. The app's service account <code>sa-app</code> gets <code>secretAccessor</code> <b>on those two secrets only</b>, plus <code>cloudsql.client</code> and <code>storage.objectUser</code> on the uploads bucket. Humans get viewer roles; deploys use a separate <code>sa-deploy</code>. Rotate every 90 days.</p>
+<p><b>Alternatives:</b> (1) Keep <code>.env</code> with chmod 600: free, but no audit or rotation, and copies leak into backups. (2) Instance metadata: readable by anything on the VM. (3) HashiCorp Vault: powerful, but we'd have to run and secure it ourselves.</p>
+<p><b>Trade-offs:</b> <span class="pass">+</span> no secrets on disk or in images, IAM-gated access, audit logs, versioned rotation. <span class="gap">−</span> app startup depends on the Secret Manager API, ≈ $0.06/secret version/month plus access costs, and more IAM bindings to maintain.</p>
+<pre>gcloud secrets create cloudnotes-db-password \
+  --replication-policy=automatic --data-file=-
+gcloud secrets add-iam-policy-binding cloudnotes-db-password \
+  --member="serviceAccount:sa-app@cloudnotes-prod.iam.gserviceaccount.com" \
+  --role="roles/secretmanager.secretAccessor"
+# at startup on the VM (no password on disk):
+DB_PASS=$(gcloud secrets versions access latest \
+  --secret=cloudnotes-db-password)</pre></div>
+</div>
+<p class="small" style="margin:6px 0 0"><b>Backlog (not ADRs yet):</b> automated local <code>pg_dump</code> cron + a monthly restore drill · budget alert at $50 · Cloud DNS zone design · narrow the <code>/health</code> allow-list · a failover drill on staging.</p>
+<div class="caption"><b>Caption:</b> Together the three ADRs close the riskiest gaps. ADR-001 encrypts all traffic and gives CloudNotes a real name and one controlled entry point. ADR-002 removes the last single point of failure by running the app in two zones with automatic healing, at roughly the same cost. ADR-003 takes secrets off disk and puts every credential behind least-privilege IAM with audit and rotation. Each records the alternatives and the cost it accepts, so the decisions can be revisited when requirements change.</div>
+</section>
+</body></html>
