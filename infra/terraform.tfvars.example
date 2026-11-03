@@ -1,0 +1,18 @@
+# Copy to terraform.tfvars and edit:   cp terraform.tfvars.example terraform.tfvars
+# terraform.tfvars is git-ignored. Placeholder values are fine for init/validate/plan.
+
+project_id          = "cloudnotes-dev-000000"
+region              = "asia-south1"
+zone                = "asia-south1-a"
+environment         = "dev"
+app_subnet_cidr     = "10.0.2.0/24"
+web_source_ranges   = ["0.0.0.0/0"]
+admin_source_ranges = ["35.235.240.0/20"] # Identity-Aware Proxy range only
+machine_type        = "e2-small"
+boot_image          = "ubuntu-os-cloud/ubuntu-2404-lts-amd64"
+bucket_name         = "cloudnotes-dev-assets-change-me"
+bucket_location     = "ASIA-SOUTH1"
+
+labels = {
+  owner = "aditi"
+}
