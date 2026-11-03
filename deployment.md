@@ -224,21 +224,30 @@ The note survives because it is stored in PostgreSQL (on disk under
 
 ## 8. Alternative: Docker (no systemd)
 
+> **Mac users:** macOS uses port 5000 for *AirPlay Receiver*. If you get "address already in use",
+> turn it off in System Settings → General → AirDrop & Handoff → AirPlay Receiver.
+> In Docker Desktop → Settings → General, tick **"Start Docker Desktop when you sign in"** so the app comes back after a reboot.
+
 ```bash
 cp .env.example .env      # set SECRET_KEY and POSTGRES_PASSWORD
 docker compose up -d --build
 docker compose ps
 curl http://localhost:5000/health
+# Persistence: add a note, restart, check it is still there, and look in PostgreSQL directly
+docker compose restart app
+curl http://localhost:5000/api/notes
+docker compose exec db psql -U cloudnotes -c "SELECT id, title FROM notes;"
 
-# Crash test: kill the app's process from the host, Docker restarts it (restart: always)
-# (`docker stop`/`docker compose kill` count as a manual stop and do NOT trigger the policy)
-sudo kill -9 $(docker inspect -f '{{.State.Pid}}' $(docker compose ps -q app))
-sleep 3
-docker compose ps                                   # app is Up again
-docker inspect -f '{{.RestartCount}}' $(docker compose ps -q app)   # restart count went up
+# Crash test: kill gunicorn (PID 1) inside the container; Docker restarts it (restart: always).
+# Works on Mac, Windows and Linux. (`docker stop` would count as a manual stop and NOT restart.)
+docker inspect -f '{{.RestartCount}}' $(docker compose ps -q app)   # e.g. 0
+docker compose exec app sh -c 'kill 1'
+sleep 5
+docker compose ps                                                     # app is Up again ("Up 3 seconds")
+docker inspect -f '{{.RestartCount}}' $(docker compose ps -q app)   # now 1
 
 # Reboot test: Docker's own service is enabled on boot, and restart: always containers come back with it
-sudo systemctl is-enabled docker
+sudo systemctl is-enabled docker     # Linux only. On Mac/Windows: restart the computer, then `docker compose ps`
 ```
 PostgreSQL data lives in the `pgdata` named volume, so it survives container restarts.
 
