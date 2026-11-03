@@ -17,3 +17,4 @@ python app.py               # http://localhost:5000
 - [`deploy/`](deploy/): `setup.sh` and the `cloudnotes.service` systemd unit
 - `Dockerfile` / `docker-compose.yml`: container alternative
 - [`architecture/`](architecture/): Module 1 cloud architecture proposal
+- [`network-security/`](network-security/): LU 2.4 tiered network (nginx web tier, private app + db), firewall rules, connectivity tests, GCP firewall mapping

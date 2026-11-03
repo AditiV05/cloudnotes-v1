@@ -1,0 +1,26 @@
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="style.css"></head><body><div class="page">
+<h1>CloudNotes: Security Posture Summary</h1>
+<p class="sub">Tiered network · least privilege · default-deny · verified with connectivity tests (7/7 passed)</p>
+<svg viewBox="0 0 1120 250" width="1120" height="250" font-family="-apple-system,Segoe UI,Roboto,Arial" font-size="13">
+ <defs><marker id="g" markerUnits="userSpaceOnUse" markerWidth="12" markerHeight="12" refX="10" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10z" fill="#047857"/></marker>
+ <marker id="r" markerUnits="userSpaceOnUse" markerWidth="12" markerHeight="12" refX="10" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10z" fill="#b91c1c"/></marker></defs>
+ <rect x="0" y="40" width="150" height="70" rx="10" fill="#f1f5f9" stroke="#64748b"/><text x="75" y="70" text-anchor="middle" font-weight="700">Client / User</text><text x="75" y="90" text-anchor="middle">0.0.0.0/0</text>
+ <rect x="250" y="30" width="200" height="90" rx="10" fill="#dbeafe" stroke="#1e3a8a"/><text x="350" y="58" text-anchor="middle" font-weight="700">WEB TIER (public)</text><text x="350" y="78" text-anchor="middle">nginx :80</text><text x="350" y="98" text-anchor="middle">network: web</text>
+ <rect x="560" y="30" width="210" height="90" rx="10" fill="#e0e7ff" stroke="#3730a3"/><text x="665" y="58" text-anchor="middle" font-weight="700">APP TIER (private)</text><text x="665" y="78" text-anchor="middle">Flask/gunicorn :5000</text><text x="665" y="98" text-anchor="middle">networks: web + data</text>
+ <rect x="880" y="30" width="220" height="90" rx="10" fill="#fef3c7" stroke="#b45309"/><text x="990" y="58" text-anchor="middle" font-weight="700">DATABASE TIER (private)</text><text x="990" y="78" text-anchor="middle">PostgreSQL :5432</text><text x="990" y="98" text-anchor="middle">network: data (internal)</text>
+ <line x1="150" y1="75" x2="246" y2="75" stroke="#047857" stroke-width="3" marker-end="url(#g)"/><text x="198" y="62" text-anchor="middle" fill="#047857" font-weight="700">✔ tcp:80</text>
+ <line x1="450" y1="75" x2="556" y2="75" stroke="#047857" stroke-width="3" marker-end="url(#g)"/><text x="503" y="62" text-anchor="middle" fill="#047857" font-weight="700">✔ tcp:5000</text>
+ <line x1="770" y1="75" x2="876" y2="75" stroke="#047857" stroke-width="3" marker-end="url(#g)"/><text x="823" y="62" text-anchor="middle" fill="#047857" font-weight="700">✔ tcp:5432</text>
+ <path d="M75,110 V160 H660 V124" fill="none" stroke="#b91c1c" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#r)"/><text x="400" y="154" text-anchor="middle" fill="#b91c1c" font-weight="700">✘ public → app :5000 DENIED</text>
+ <path d="M75,160 V190 H990 V124" fill="none" stroke="#b91c1c" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#r)"/><text x="560" y="184" text-anchor="middle" fill="#b91c1c" font-weight="700">✘ public → db :5432 DENIED   ·   ✘ web → db DENIED   ·   ✘ db → internet DENIED</text>
+ <rect x="0" y="205" width="150" height="40" rx="10" fill="#fff7ed" stroke="#b45309"/><text x="75" y="230" text-anchor="middle" font-weight="700">Admin (SSH)</text>
+ <text x="165" y="230" fill="#b45309" font-weight="700">🔒 tcp:22 only from a trusted IP / IAP, never 0.0.0.0/0 · locally: no SSH in containers, admin = docker compose exec on the host</text>
+</svg>
+<div class="grid">
+<div class="card"><h3 class="allow">✔ Allowed traffic</h3><ul><li>Public → web tier (nginx) on <b>tcp:80</b> (443 once TLS is added)</li><li>Web → app on <b>tcp:5000</b></li><li>App → database on <b>tcp:5432</b></li><li>App → internet (egress for updates)</li></ul></div>
+<div class="card"><h3 class="deny">✘ Denied traffic</h3><ul><li>Public → app :5000 and public → database :5432</li><li>Web → database (no shared network)</li><li>Database → internet (internal network)</li><li>Unused HTTP methods (PUT/PATCH → 405) and every unpublished port (<b>default-deny</b>)</li></ul></div>
+<div class="card"><h3>🛡 How the database is protected</h3><ul><li>Publishes no port and has no external IP or route</li><li>Only the app tier shares its <code>data</code> network</li><li>Even a compromised web server can't resolve it (<code>bad address 'db'</code>)</li><li>Password in <code>.env</code>, never in git</li></ul></div>
+<div class="card"><h3 class="restrict">🔒 How admin access is controlled</h3><ul><li>No container runs SSH; port 22 is never published</li><li>Admin = <code>docker compose exec</code> on the host (requires login)</li><li><code>/health</code> answers only local/private addresses</li><li>VM: <code>ufw allow from &lt;trusted-ip&gt; to any port 22</code> · GCP: IAP only</li></ul></div>
+</div>
+<div class="note"><b>Cloud translation:</b> tiers → web/app/db subnets in a custom VPC; network membership → network tags / service accounts; published port → VPC ingress ALLOW rule; default-deny → implied deny-all-ingress; db subnet gets no external IPs and no Cloud NAT.<br><b>Least privilege:</b> each tier gets exactly one inbound port from exactly one source, and the design is proven by testing that the dangerous paths are blocked.</div>
+</div></body></html>
