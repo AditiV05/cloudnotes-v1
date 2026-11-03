@@ -1,31 +1,24 @@
-import sqlite3
 import os
 
-SCHEMA = """
-CREATE TABLE IF NOT EXISTS notes (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    title TEXT NOT NULL,
-    body TEXT NOT NULL,
-    filename TEXT,
-    created_at TEXT DEFAULT CURRENT_TIMESTAMP
-);
-"""
+import psycopg2
+import psycopg2.extras
 
 ALLOWED_EXTENSIONS = {"txt", "md", "pdf", "png", "jpg", "jpeg", "gif"}
 
 
-def get_db_connection(db_path):
-    conn = sqlite3.connect(db_path)
-    conn.row_factory = sqlite3.Row
-    return conn
+def get_database_url():
+    """Read the PostgreSQL connection string from the environment (never hardcoded)."""
+    url = os.environ.get("DATABASE_URL")
+    if not url:
+        raise RuntimeError(
+            "DATABASE_URL is not set. Copy .env.example to .env and fill in your PostgreSQL connection string."
+        )
+    return url
 
 
-def init_db(db_path):
-    os.makedirs(os.path.dirname(db_path), exist_ok=True)
-    conn = get_db_connection(db_path)
-    with conn:
-        conn.executescript(SCHEMA)
-    conn.close()
+def get_db_connection():
+    """Open a PostgreSQL connection whose cursors return rows as dicts."""
+    return psycopg2.connect(get_database_url(), cursor_factory=psycopg2.extras.RealDictCursor)
 
 
 def allowed_file(filename):

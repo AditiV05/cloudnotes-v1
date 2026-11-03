@@ -1,0 +1,25 @@
+## CloudNotes local verification log (gunicorn + PostgreSQL 16)
+
+$ curl -s http://localhost:5000/health
+{"database":"postgresql","pid":477,"status":"ok"}
+
+$ curl -s -o /dev/null -w '%{http_code}' http://localhost:5000/notes
+200
+$ curl -s -X POST -F title='Persistence test' -F body='Written before restart' http://localhost:5000/api/notes
+{"body":"Written before restart","filename":null,"id":1,"title":"Persistence test"}
+
+
+--- stopping gunicorn (simulated app restart) ---
+$ curl http://localhost:5000/health   (app down)
+connection refused (app stopped)
+--- starting gunicorn again ---
+$ curl -s http://localhost:5000/api/notes
+[{"body":"Written before restart","created_at":"2026-11-03 12:37:43","filename":null,"id":1,"title":"Persistence test"}]
+
+
+$ psql -c 'SELECT id, title, body FROM notes;'
+ id |      title       |          body          
+----+------------------+------------------------
+  1 | Persistence test | Written before restart
+(1 row)
+
