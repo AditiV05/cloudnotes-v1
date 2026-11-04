@@ -18,14 +18,24 @@ output "bucket_url" {
   value       = google_storage_bucket.assets.url
 }
 
-output "network_name" {
-  description = "Name of the CloudNotes VPC network."
-  value       = google_compute_network.vpc.name
+output "web_network_id" {
+  description = "ID of the web VPC, read from the network module."
+  value       = module.web_network.network_id
 }
 
-output "app_subnet_cidr" {
-  description = "CIDR range of the app subnet."
-  value       = google_compute_subnetwork.app.ip_cidr_range
+output "web_subnet_cidr" {
+  description = "CIDR range of the web subnet, read from the network module."
+  value       = module.web_network.subnet_cidr
+}
+
+output "app_network_name" {
+  description = "Name of the app VPC, read from the network module."
+  value       = module.app_network.network_name
+}
+
+output "app_subnet_id" {
+  description = "ID of the app subnet, read from the network module."
+  value       = module.app_network.subnet_id
 }
 
 output "app_service_account_email" {

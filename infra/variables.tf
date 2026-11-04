@@ -25,14 +25,14 @@ variable "environment" {
   }
 }
 
-variable "app_subnet_cidr" {
+variable "web_cidr" {
   type        = string
-  description = "CIDR range of the app subnet (e.g. 10.0.2.0/24)."
+  description = "CIDR range of the web network's subnet (e.g. 10.0.1.0/24)."
+}
 
-  validation {
-    condition     = can(cidrhost(var.app_subnet_cidr, 0))
-    error_message = "app_subnet_cidr must be a valid CIDR block."
-  }
+variable "app_cidr" {
+  type        = string
+  description = "CIDR range of the app network's subnet (e.g. 10.0.2.0/24)."
 }
 
 variable "web_source_ranges" {

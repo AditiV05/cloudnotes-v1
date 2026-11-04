@@ -34,48 +34,28 @@ locals {
 
 # ---------------------------------------------------------------- Network ---
 
-resource "google_compute_network" "vpc" {
-  name                    = "${local.name_prefix}-vpc"
-  auto_create_subnetworks = false
-  routing_mode            = "REGIONAL"
-}
+# One module, two configured instances. Only the inputs differ.
 
-resource "google_compute_subnetwork" "app" {
-  name                     = "${local.name_prefix}-app-subnet"
-  ip_cidr_range            = var.app_subnet_cidr
-  region                   = var.region
-  network                  = google_compute_network.vpc.id
-  private_ip_google_access = true
-}
+module "web_network" {
+  source = "./modules/network"
 
-# Public HTTP/HTTPS ingress only to instances tagged "web".
-resource "google_compute_firewall" "allow_web" {
-  name          = "${local.name_prefix}-allow-web"
-  network       = google_compute_network.vpc.id
-  direction     = "INGRESS"
-  priority      = 1000
+  network_name  = "${local.name_prefix}-web"
+  cidr          = var.web_cidr
+  region        = var.region
+  allowed_ports = ["80", "443"]
   source_ranges = var.web_source_ranges
   target_tags   = ["web"]
-
-  allow {
-    protocol = "tcp"
-    ports    = ["80", "443"]
-  }
 }
 
-# SSH only from trusted admin ranges (e.g. IAP), never 0.0.0.0/0.
-resource "google_compute_firewall" "allow_ssh_admin" {
-  name          = "${local.name_prefix}-allow-ssh-admin"
-  network       = google_compute_network.vpc.id
-  direction     = "INGRESS"
-  priority      = 1000
+module "app_network" {
+  source = "./modules/network"
+
+  network_name  = "${local.name_prefix}-app"
+  cidr          = var.app_cidr
+  region        = var.region
+  allowed_ports = ["22"]
   source_ranges = var.admin_source_ranges
   target_tags   = ["admin"]
-
-  allow {
-    protocol = "tcp"
-    ports    = ["22"]
-  }
 }
 
 # ---------------------------------------------------------------- Compute ---
@@ -89,7 +69,7 @@ resource "google_compute_instance" "app" {
   name         = "${local.name_prefix}-app"
   machine_type = var.machine_type
   zone         = var.zone
-  tags         = ["web", "admin"]
+  tags         = ["admin"]
   labels       = local.common_labels
 
   boot_disk {
@@ -102,7 +82,7 @@ resource "google_compute_instance" "app" {
 
   # Private IP only: no access_config block, so no public IP on the VM.
   network_interface {
-    subnetwork = google_compute_subnetwork.app.id
+    subnetwork = module.app_network.subnet_id
   }
 
   service_account {
