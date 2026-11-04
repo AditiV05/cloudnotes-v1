@@ -1,0 +1,20 @@
+# Copy to terraform.tfvars (git-ignored). Placeholder values only, no secrets.
+region               = "us-east-1"
+availability_zones   = ["us-east-1a", "us-east-1b"]
+localstack_endpoint  = "http://host.docker.internal:4566"
+name_prefix          = "cloudnotes-dev"
+vpc_cidr             = "10.0.0.0/16"
+web_subnet_cidr      = "10.0.1.0/24"
+app_subnet_cidr      = "10.0.2.0/24"
+db_subnet_cidrs      = ["10.0.3.0/24", "10.0.4.0/24"]
+web_source_ranges    = ["0.0.0.0/0"]
+app_port             = 8080
+db_port              = 5432
+ami_id               = "ami-00000000000000000"
+instance_type        = "t3.small"
+db_engine_version    = "16"
+db_instance_class    = "db.t4g.micro"
+db_allocated_storage = 20
+db_name              = "cloudnotes"
+db_username          = "cloudnotes_admin"
+bucket_name          = "cloudnotes-dev-assets"
