@@ -1,0 +1,7 @@
+# Image A: traditional single-stage build, used only for the size comparison.
+FROM python:3.11
+WORKDIR /app
+COPY . .
+RUN pip install --no-cache-dir -r requirements.txt
+EXPOSE 5000
+CMD ["gunicorn", "--workers", "2", "--bind", "0.0.0.0:5000", "app:app"]

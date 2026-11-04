@@ -1,0 +1,12 @@
+.git
+.gitignore
+.env
+venv
+__pycache__
+*.pyc
+infra
+architecture
+architecture-hints.md
+README.md
+database/*.db
+uploads/*
