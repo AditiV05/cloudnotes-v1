@@ -9,6 +9,7 @@ api_bp = Blueprint("api", __name__)
 @api_bp.route("/notes", methods=["GET"])
 def get_notes():
     conn = get_db_connection(current_app.config["DATABASE_PATH"])
+    current_app.logger.info("listing notes")
     notes = conn.execute("SELECT id, title, body, filename, created_at FROM notes ORDER BY created_at DESC").fetchall()
     conn.close()
     return jsonify([dict(note) for note in notes])
@@ -16,6 +17,7 @@ def get_notes():
 
 @api_bp.route("/notes", methods=["POST"])
 def create_note():
+    current_app.logger.info("saving note")
     title = request.form.get("title", "Untitled Note")
     body = request.form.get("body", "")
     filename = None
@@ -35,6 +37,7 @@ def create_note():
     conn.commit()
     note_id = cursor.lastrowid
     conn.close()
+    current_app.logger.info("note saved", extra={"fields": {"note_id": note_id}})
 
     return jsonify({"id": note_id, "title": title, "body": body, "filename": filename}), 201
 

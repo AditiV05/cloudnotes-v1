@@ -1,0 +1,7 @@
+apiVersion: 1
+providers:
+  - name: CloudNotes
+    type: file
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards

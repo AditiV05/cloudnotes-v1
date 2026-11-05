@@ -12,7 +12,7 @@ COPY api ./app/api
 COPY utils ./app/utils
 COPY templates ./app/templates
 COPY static ./app/static
-RUN mkdir -p /build/app/database /build/app/uploads
+RUN mkdir -p /build/app/database /build/app/uploads /build/app/logs
 
 # ---------- Stage 2: RUNTIME (slim, this is what ships) ----------
 # Distroless has Python but no shell, no pip, and no apt. It runs as non-root.

@@ -1,8 +1,14 @@
+import io
+import json
+import logging
 import os
 import subprocess
 import sys
 
+import pytest
+
 import app as app_module
+from utils.logs import JsonFormatter
 
 
 def test_home_page(client):
@@ -66,3 +72,43 @@ def test_fault_route_is_off_by_default(client, monkeypatch):
 def test_fault_route_returns_500_when_enabled(client, monkeypatch):
     monkeypatch.setenv("FAULT_INJECTION", "true")
     assert client.get("/debug/fail").status_code == 500
+
+
+def test_each_request_gets_a_request_id(client):
+    first = client.get("/").headers["X-Request-ID"]
+    second = client.get("/").headers["X-Request-ID"]
+    assert first and first != second
+
+
+def test_a_safe_supplied_request_id_is_kept(client):
+    assert client.get("/", headers={"X-Request-ID": "trace-123"}).headers["X-Request-ID"] == "trace-123"
+
+
+def test_an_unsafe_supplied_request_id_is_replaced(client):
+    response = client.get("/", headers={"X-Request-ID": "bad id!"})
+    assert response.headers["X-Request-ID"] != "bad id!"
+
+
+@pytest.fixture
+def json_log_lines():
+    stream = io.StringIO()
+    handler = logging.StreamHandler(stream)
+    handler.setFormatter(JsonFormatter())
+    root = logging.getLogger()
+    root.addHandler(handler)
+    yield lambda: [json.loads(line) for line in stream.getvalue().splitlines()]
+    root.removeHandler(handler)
+
+
+def test_log_line_is_one_json_object_with_core_fields(client, json_log_lines):
+    client.get("/", headers={"X-Request-ID": "trace-456"})
+    mine = [line for line in json_log_lines() if line["request_id"] == "trace-456"]
+    assert [line["message"] for line in mine] == ["request received", "request completed"]
+    assert {"timestamp", "level", "request_id", "message"} <= set(mine[0])
+
+
+def test_failed_request_logs_an_error(client, json_log_lines, monkeypatch):
+    monkeypatch.setenv("FAULT_INJECTION", "true")
+    client.get("/debug/fail", headers={"X-Request-ID": "trace-789"})
+    levels = [line["level"] for line in json_log_lines() if line["request_id"] == "trace-789"]
+    assert levels == ["INFO", "ERROR", "ERROR"]

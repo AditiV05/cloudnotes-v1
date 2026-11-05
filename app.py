@@ -2,6 +2,7 @@ from flask import Flask, jsonify, render_template, request, redirect, url_for, s
 from api.routes import api_bp
 from utils.helpers import get_db_connection, init_db
 from utils.metrics import init_metrics
+from utils.logs import configure_logging, init_request_logging
 import os
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -10,18 +11,20 @@ DATA_DIR = os.environ.get("DATA_DIR", BASE_DIR)
 UPLOAD_FOLDER = os.path.join(DATA_DIR, "uploads")
 DATABASE_PATH = os.path.join(DATA_DIR, "database", "cloudnotes.db")
 
+configure_logging()
+
 app = Flask(__name__)
 # Fail fast: without this setting the app must not start in a half-working state.
 SECRET_KEY = os.environ.get("SECRET_KEY")
 if not SECRET_KEY:
     raise RuntimeError("Missing required environment variable: SECRET_KEY")
 app.config["SECRET_KEY"] = SECRET_KEY
-app.logger.setLevel(os.environ.get("LOG_LEVEL", "INFO").upper())
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 app.config["DATABASE_PATH"] = DATABASE_PATH
 app.config["MAX_CONTENT_LENGTH"] = 5 * 1024 * 1024
 
 init_metrics(app)
+init_request_logging(app)
 app.register_blueprint(api_bp, url_prefix="/api")
 
 # Flask 2.3 removed before_first_request, so set up once at startup.
@@ -37,6 +40,7 @@ def debug_fail():
     # Off unless FAULT_INJECTION=true. Used only to prove the alert fires.
     if os.environ.get("FAULT_INJECTION") != "true":
         return jsonify(error="Not found"), 404
+    app.logger.error("injected failure while saving note")
     return jsonify(error="Injected failure"), 500
 
 @app.route("/health")

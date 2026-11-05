@@ -1,0 +1,50 @@
+# CloudNotes with Loki, Promtail and Grafana. Local only, zero cost.
+#   export SECRET_KEY="$(openssl rand -hex 32)"
+#   docker compose -f log-stack/docker-compose.yml up -d --build
+services:
+  cloudnotes:
+    build: ..
+    # warning level hides gunicorn's plain-text startup lines, so stdout stays JSON.
+    command: ["-m", "gunicorn", "--workers", "1", "--log-level", "warning", "--bind", "0.0.0.0:5000", "--worker-tmp-dir", "/dev/shm", "app:app"]
+    environment:
+      SECRET_KEY: ${SECRET_KEY:?Run export SECRET_KEY first}
+      APP_ENV: logging
+      LOG_LEVEL: info
+      LOG_FILE: /app/logs/cloudnotes.log # stdout plus this copy, which Promtail tails
+      FAULT_INJECTION: "true" # enables /debug/fail, to create an error to trace
+    volumes:
+      - app-logs:/app/logs
+    ports:
+      - "127.0.0.1:5056:5000"
+
+  loki:
+    image: grafana/loki:3.5.0
+    ports:
+      - "127.0.0.1:3100:3100"
+
+  promtail:
+    image: grafana/promtail:3.5.0
+    command: ["-config.file=/etc/promtail/config.yml"]
+    volumes:
+      - ./promtail.yml:/etc/promtail/config.yml:ro
+      - app-logs:/var/log/cloudnotes:ro
+    depends_on:
+      - loki
+
+  grafana:
+    image: grafana/grafana:12.0.0
+    environment:
+      # Reachable only from this laptop, so no login is needed.
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+      GF_AUTH_DISABLE_LOGIN_FORM: "true"
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      - loki
+
+volumes:
+  app-logs:
