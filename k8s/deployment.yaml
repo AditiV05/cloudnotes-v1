@@ -21,7 +21,7 @@ spec:
         fsGroup: 65532
       containers:
         - name: cloudnotes
-          image: adi30v/cloudnotes:bba194cdc6e2f82ed2f4207a84d11134542652e6
+          image: adi30v/cloudnotes:38734c19895752d49a6b4789f577f1ded8d3f747
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 5000
