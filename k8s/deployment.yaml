@@ -1,0 +1,58 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cloudnotes
+  labels:
+    app: cloudnotes
+spec:
+  # One pod and Recreate: SQLite on a ReadWriteOnce volume should have one writer.
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: cloudnotes
+  template:
+    metadata:
+      labels:
+        app: cloudnotes
+    spec:
+      securityContext:
+        fsGroup: 65532
+      containers:
+        - name: cloudnotes
+          image: cloudnotes:1.2.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 5000
+          envFrom:
+            - configMapRef:
+                name: cloudnotes-config
+            - secretRef:
+                name: cloudnotes-secret
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 5000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 5000
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: "200m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: cloudnotes-data

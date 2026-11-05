@@ -1,0 +1,19 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: cloudnotes
+  labels:
+    app: cloudnotes
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: cloudnotes.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: cloudnotes
+                port:
+                  number: 80

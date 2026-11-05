@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cloudnotes-config
+  labels:
+    app: cloudnotes
+data:
+  APP_ENV: "local"
+  LOG_LEVEL: "info"
+  DATA_DIR: "/data"
