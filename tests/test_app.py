@@ -49,3 +49,20 @@ def test_app_refuses_to_start_without_secret_key():
     result = subprocess.run([sys.executable, "-c", "import app"], env=env, capture_output=True, text=True)
     assert result.returncode != 0
     assert "Missing required environment variable: SECRET_KEY" in result.stderr
+
+
+def test_metrics_endpoint_counts_requests_by_route(client):
+    client.get("/health")
+    body = client.get("/metrics").get_data(as_text=True)
+    assert 'http_requests_total{method="GET",path="/health",status="200"}' in body
+    assert "http_request_duration_seconds_bucket" in body
+
+
+def test_fault_route_is_off_by_default(client, monkeypatch):
+    monkeypatch.delenv("FAULT_INJECTION", raising=False)
+    assert client.get("/debug/fail").status_code == 404
+
+
+def test_fault_route_returns_500_when_enabled(client, monkeypatch):
+    monkeypatch.setenv("FAULT_INJECTION", "true")
+    assert client.get("/debug/fail").status_code == 500

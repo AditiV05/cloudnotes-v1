@@ -1,6 +1,7 @@
 from flask import Flask, jsonify, render_template, request, redirect, url_for, send_from_directory
 from api.routes import api_bp
 from utils.helpers import get_db_connection, init_db
+from utils.metrics import init_metrics
 import os
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -20,6 +21,7 @@ app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 app.config["DATABASE_PATH"] = DATABASE_PATH
 app.config["MAX_CONTENT_LENGTH"] = 5 * 1024 * 1024
 
+init_metrics(app)
 app.register_blueprint(api_bp, url_prefix="/api")
 
 # Flask 2.3 removed before_first_request, so set up once at startup.
@@ -29,6 +31,13 @@ app.logger.info(
     "CloudNotes started: env=%s data_dir=%s secret_key_set=%s",
     os.environ.get("APP_ENV", "unset"), DATA_DIR, bool(app.config["SECRET_KEY"]),
 )
+
+@app.route("/debug/fail")
+def debug_fail():
+    # Off unless FAULT_INJECTION=true. Used only to prove the alert fires.
+    if os.environ.get("FAULT_INJECTION") != "true":
+        return jsonify(error="Not found"), 404
+    return jsonify(error="Injected failure"), 500
 
 @app.route("/health")
 def health():

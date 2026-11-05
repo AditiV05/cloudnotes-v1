@@ -1,0 +1,37 @@
+# CloudNotes with Prometheus and Grafana. Local only, zero cost.
+#   export SECRET_KEY="$(openssl rand -hex 32)"
+#   docker compose -f monitoring/docker-compose.yml up -d --build
+services:
+  cloudnotes:
+    build: ..
+    # One worker, so every scrape sees the same in-memory counters.
+    command: ["-m", "gunicorn", "--workers", "1", "--bind", "0.0.0.0:5000", "--worker-tmp-dir", "/dev/shm", "app:app"]
+    environment:
+      SECRET_KEY: ${SECRET_KEY:?Run export SECRET_KEY first}
+      APP_ENV: monitoring
+      FAULT_INJECTION: "true" # enables /debug/fail, for the alert test only
+    ports:
+      - "127.0.0.1:5055:5000"
+
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./alerts.yml:/etc/prometheus/alerts.yml:ro
+    ports:
+      - "127.0.0.1:9090:9090"
+
+  grafana:
+    image: grafana/grafana:12.0.0
+    environment:
+      # Reachable only from this laptop, so no login is needed.
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+      GF_AUTH_DISABLE_LOGIN_FORM: "true"
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      - prometheus

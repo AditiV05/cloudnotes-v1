@@ -1,0 +1,13 @@
+groups:
+  - name: cloudnotes-golden-signals
+    rules:
+      - alert: CloudNotesHighErrorRate
+        # Symptom users feel: more than 5% of requests failed over the last minute.
+        expr: |
+          (sum(rate(http_requests_total{job="cloudnotes",status=~"5.."}[1m])) or vector(0))
+            / sum(rate(http_requests_total{job="cloudnotes"}[1m])) > 0.05
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: CloudNotes error rate is above 5%
