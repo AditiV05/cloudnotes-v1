@@ -10,7 +10,11 @@ UPLOAD_FOLDER = os.path.join(DATA_DIR, "uploads")
 DATABASE_PATH = os.path.join(DATA_DIR, "database", "cloudnotes.db")
 
 app = Flask(__name__)
-app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY")
+# Fail fast: without this setting the app must not start in a half-working state.
+SECRET_KEY = os.environ.get("SECRET_KEY")
+if not SECRET_KEY:
+    raise RuntimeError("Missing required environment variable: SECRET_KEY")
+app.config["SECRET_KEY"] = SECRET_KEY
 app.logger.setLevel(os.environ.get("LOG_LEVEL", "INFO").upper())
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 app.config["DATABASE_PATH"] = DATABASE_PATH

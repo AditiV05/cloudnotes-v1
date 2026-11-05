@@ -1,3 +1,7 @@
+import os
+import subprocess
+import sys
+
 import app as app_module
 
 
@@ -38,3 +42,10 @@ def test_created_note_can_be_read_back(client):
 
     notes = client.get("/api/notes").get_json()
     assert any(note["title"] == "ci-note" and note["body"] == "from the pipeline" for note in notes)
+
+
+def test_app_refuses_to_start_without_secret_key():
+    env = {key: value for key, value in os.environ.items() if key != "SECRET_KEY"}
+    result = subprocess.run([sys.executable, "-c", "import app"], env=env, capture_output=True, text=True)
+    assert result.returncode != 0
+    assert "Missing required environment variable: SECRET_KEY" in result.stderr
