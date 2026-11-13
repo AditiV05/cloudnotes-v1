@@ -1,0 +1,72 @@
+# CloudNotes HA failover lab (LU 5.8): 2 app replicas behind HAProxy, shared PostgreSQL.
+#   docker compose up -d --wait      (run inside ha-lab/)
+# Client entrypoint (never changes): http://127.0.0.1:8080
+name: ha-lab
+
+x-app: &app
+  build:
+    context: ..
+    dockerfile: Dockerfile
+  image: ha-lab-cloudnotes:latest
+  restart: "no"                    # a killed replica stays down: we test TRAFFIC failover, not container restart
+  environment: &app-env
+    DATABASE_URL: postgresql://cloudnotes:${LAB_DB_PASSWORD:-lab-only-password}@db:5432/cloudnotes
+    SECRET_KEY: ${LAB_SECRET_KEY:-lab-only-secret}
+    UPLOAD_FOLDER: /app/uploads
+  expose:
+    - "5000"
+  healthcheck:                     # Docker readiness: /health must read the notes table
+    test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:5000/health', timeout=2).status == 200 else 1)"]
+    interval: 2s
+    timeout: 3s
+    retries: 10
+    start_period: 5s
+
+services:
+  db:
+    image: postgres:16
+    restart: always
+    environment:
+      POSTGRES_DB: cloudnotes
+      POSTGRES_USER: cloudnotes
+      POSTGRES_PASSWORD: ${LAB_DB_PASSWORD:-lab-only-password}
+    volumes:
+      - lab-notes:/var/lib/postgresql/data   # shared, persistent note store (single copy, NOT replicated)
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cloudnotes"]
+      interval: 2s
+      retries: 20
+
+  app1:
+    <<: *app
+    environment:
+      <<: *app-env
+      REPLICA_ID: app1
+    depends_on:
+      db:
+        condition: service_healthy
+
+  app2:
+    <<: *app
+    environment:
+      <<: *app-env
+      REPLICA_ID: app2
+    depends_on:
+      app1:
+        condition: service_healthy   # app1 creates the schema first; avoids a migration race
+
+  proxy:
+    image: haproxy:2.9-alpine
+    restart: always
+    ports:
+      - "127.0.0.1:8080:8080"        # common entrypoint, localhost only
+    volumes:
+      - ./haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+    depends_on:
+      app1:
+        condition: service_healthy
+      app2:
+        condition: service_healthy
+
+volumes:
+  lab-notes:

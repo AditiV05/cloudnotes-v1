@@ -23,6 +23,15 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 app.register_blueprint(api_bp, url_prefix="/api")
 
+# Which copy of the app served this request (set per replica, e.g. app1 / app2).
+REPLICA_ID = os.environ.get("REPLICA_ID", "single")
+
+
+@app.after_request
+def add_replica_header(response):
+    response.headers["X-Served-By"] = REPLICA_ID
+    return response
+
 
 @app.route("/")
 def home():
@@ -41,15 +50,19 @@ def uploaded_file(filename):
 
 @app.route("/health")
 def health():
-    """Liveness + database check, used to verify the deployment with curl."""
+    """Readiness check: the app is up AND can read the notes table."""
     try:
         conn = get_db_connection()
         with conn.cursor() as cur:
             cur.execute("SELECT current_setting('server_version') AS v")
             version = cur.fetchone()["v"]
+            cur.execute("SELECT count(*) AS n FROM notes")
+            notes = cur.fetchone()["n"]
         conn.close()
         return jsonify({
             "status": "ok",
+            "served_by": REPLICA_ID,
+            "notes": notes,
             "database": "postgresql",
             "server_version": version,
             "db_host": urlparse(os.environ.get("DATABASE_URL", "")).hostname,  # host only, never the password
