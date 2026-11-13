@@ -168,6 +168,13 @@ def cmd_targets():
 def cmd_failover():
     if not os.path.exists(BASELINE):
         sys.exit("Run `python3 drill.py baseline` first.")
+    if os.path.exists(RESULT):
+        sys.exit("result.json already exists: a failover was already run. Evidence must come from ONE run.\n"
+                 "To start a fresh run:  docker compose down -v && rm -f baseline.json result.json failover.log"
+                 " && docker compose up -d --wait   (then baseline, targets, failover)")
+    app1_state = container_states().get(FAILED, {}).get("state")
+    if app1_state != "running":
+        sys.exit(f"{FAILED} is not running (state: {app1_state}). A failover test needs a healthy {FAILED} to kill.")
     with open(BASELINE) as f:
         baseline = json.load(f)
     base_notes = baseline["notes"]
