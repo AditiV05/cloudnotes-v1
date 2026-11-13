@@ -8,6 +8,7 @@ x-app: &app
     context: ..
     dockerfile: Dockerfile
   image: ha-lab-cloudnotes:latest
+  pull_policy: build              # built from this repo, never pulled from a registry
   restart: "no"                    # a killed replica stays down: we test TRAFFIC failover, not container restart
   environment: &app-env
     DATABASE_URL: postgresql://cloudnotes:${LAB_DB_PASSWORD:-lab-only-password}@db:5432/cloudnotes
